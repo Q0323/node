@@ -213,7 +213,8 @@ const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
     const publicKey = { key: publicKeyDER, ...publicKeyEncoding };
     const expectedError = common.hasOpenSSL3 ? {
       name: 'Error',
-      message: 'Failed to read private key'
+      message: 'error:07880109:common libcrypto routines::interrupted or ' +
+               'cancelled'
     } : {
       name: 'TypeError',
       code: 'ERR_MISSING_PASSPHRASE',
@@ -477,7 +478,8 @@ const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
     // Since the private key is encrypted, signing shouldn't work anymore.
     assert.throws(() => testSignVerify(publicKey, privateKey),
                   common.hasOpenSSL3 ? {
-                    message: 'Failed to read private key'
+                    message: 'error:07880109:common libcrypto ' +
+                             'routines::interrupted or cancelled'
                   } : {
                     name: 'TypeError',
                     code: 'ERR_MISSING_PASSPHRASE',
@@ -510,7 +512,8 @@ const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
     // Since the private key is encrypted, signing shouldn't work anymore.
     assert.throws(() => testSignVerify(publicKey, privateKey),
                   common.hasOpenSSL3 ? {
-                    message: 'Failed to read private key'
+                    message: 'error:07880109:common libcrypto ' +
+                             'routines::interrupted or cancelled'
                   } : {
                     name: 'TypeError',
                     code: 'ERR_MISSING_PASSPHRASE',
@@ -546,7 +549,7 @@ const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
     // Since the private key is encrypted, signing shouldn't work anymore.
     assert.throws(() => testSignVerify(publicKey, privateKey),
                   common.hasOpenSSL3 ? {
-                    message: 'Failed to read private key'
+                    message: 'error:1E08010C:DECODER routines::unsupported'
                   } : {
                     name: 'TypeError',
                     code: 'ERR_MISSING_PASSPHRASE',
@@ -583,7 +586,7 @@ const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
     // Since the private key is encrypted, signing shouldn't work anymore.
     assert.throws(() => testSignVerify(publicKey, privateKey),
                   common.hasOpenSSL3 ? {
-                    message: 'Failed to read private key'
+                    message: 'error:1E08010C:DECODER routines::unsupported'
                   } : {
                     name: 'TypeError',
                     code: 'ERR_MISSING_PASSPHRASE',
@@ -958,7 +961,7 @@ const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
   }
 
   // Test invalid divisor lengths.
-  for (const divisorLength of ['a', true, {}, [], 4096.1]) {
+  for (const divisorLength of ['a', true, {}, [], 4096.1, 2147483648, -1]) {
     assert.throws(() => generateKeyPair('dsa', {
       modulusLength: 2048,
       divisorLength
@@ -1081,6 +1084,52 @@ const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
     message: 'Unknown DH group'
   });
 
+  assert.throws(() => {
+    generateKeyPair('dh', {
+      primeLength: 2147483648
+    }, common.mustNotCall());
+  }, {
+    name: 'TypeError',
+    code: 'ERR_INVALID_ARG_VALUE',
+    message: "The property 'options.primeLength' is invalid. " +
+             'Received 2147483648',
+  });
+
+  assert.throws(() => {
+    generateKeyPair('dh', {
+      primeLength: -1
+    }, common.mustNotCall());
+  }, {
+    name: 'TypeError',
+    code: 'ERR_INVALID_ARG_VALUE',
+    message: "The property 'options.primeLength' is invalid. " +
+             'Received -1',
+  });
+
+  assert.throws(() => {
+    generateKeyPair('dh', {
+      primeLength: 2,
+      generator: 2147483648,
+    }, common.mustNotCall());
+  }, {
+    name: 'TypeError',
+    code: 'ERR_INVALID_ARG_VALUE',
+    message: "The property 'options.generator' is invalid. " +
+             'Received 2147483648',
+  });
+
+  assert.throws(() => {
+    generateKeyPair('dh', {
+      primeLength: 2,
+      generator: -1,
+    }, common.mustNotCall());
+  }, {
+    name: 'TypeError',
+    code: 'ERR_INVALID_ARG_VALUE',
+    message: "The property 'options.generator' is invalid. " +
+             'Received -1',
+  });
+
   // Test incompatible options.
   const allOpts = {
     group: 'modp5',
@@ -1141,6 +1190,35 @@ const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
         `Received ${inspect(hashValue)}`
     });
   }
+
+  // too long salt length
+  assert.throws(() => {
+    generateKeyPair('rsa-pss', {
+      modulusLength: 512,
+      saltLength: 2147483648,
+      hash: 'sha256',
+      mgf1Hash: 'sha256'
+    }, common.mustNotCall());
+  }, {
+    name: 'TypeError',
+    code: 'ERR_INVALID_ARG_VALUE',
+    message: "The property 'options.saltLength' is invalid. " +
+             'Received 2147483648'
+  });
+
+  assert.throws(() => {
+    generateKeyPair('rsa-pss', {
+      modulusLength: 512,
+      saltLength: -1,
+      hash: 'sha256',
+      mgf1Hash: 'sha256'
+    }, common.mustNotCall());
+  }, {
+    name: 'TypeError',
+    code: 'ERR_INVALID_ARG_VALUE',
+    message: "The property 'options.saltLength' is invalid. " +
+             'Received -1'
+  });
 
   // Invalid private key type.
   for (const type of ['foo', 'spki']) {
